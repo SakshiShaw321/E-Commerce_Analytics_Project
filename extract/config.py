@@ -1,8 +1,6 @@
 """Configuration for the automated scraper scheduler."""
 
-import os
 from pathlib import Path
-from datetime import datetime, time
 
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "raw_data"
@@ -31,7 +29,7 @@ SCRAPER_CONFIG = {
         "function": "scrape_ajio_women_shirts",
         "output_file": DATA_DIR / "ecommerce_ajio_data.csv",
         "enabled": True,
-        "schedule_hour": 10,
+        "schedule_hour": 11,
         "schedule_minute": 0,
         "max_products": None,
         "max_pages": None,
@@ -43,7 +41,7 @@ SCRAPER_CONFIG = {
         "function": "scrape_snapdeal_women_shirts",
         "output_file": DATA_DIR / "ecommerce_snapdeal_data.csv",
         "enabled": True,
-        "schedule_hour": 10,
+        "schedule_hour": 12,
         "schedule_minute": 0,
         "max_products": None,
         "max_pages": None,
@@ -55,7 +53,7 @@ SCRAPER_CONFIG = {
         "function": "scrape_flipkart_women_shirts",
         "output_file": DATA_DIR / "ecommerce_flipkart_data.csv",
         "enabled": True,
-        "schedule_hour": 10,
+        "schedule_hour": 13,
         "schedule_minute": 0,
         "max_products": None,
         "max_pages": None,
@@ -67,7 +65,7 @@ SCRAPER_CONFIG = {
         "function": "scrape_amazon_women_shirts",
         "output_file": DATA_DIR / "ecommerce_amazon_data.csv",
         "enabled": True,
-        "schedule_hour": 10,
+        "schedule_hour": 14,
         "schedule_minute": 0,
         "max_products": None,
         "max_pages": None,
@@ -78,11 +76,17 @@ SCRAPER_CONFIG = {
 
 SCHEDULER_CONFIG = {
     "timezone": "Asia/Kolkata",
-    "executor_type": "threadpool",
-    "max_workers": 1,
+    "run_missed_on_startup": True,
+    "executors": {
+        "default": {
+            "type": "threadpool",
+            "max_workers": 1,
+        }
+    },
     "job_defaults": {
         "coalesce": True,
         "max_instances": 1,
+        "misfire_grace_time": 3600,
     },
 }
 

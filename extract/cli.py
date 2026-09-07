@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from config import SCRAPER_CONFIG, SCHEDULER_CONFIG
 from scheduler import ScraperScheduler
 from execution_tracker import ExecutionTracker
 from logger_setup import scheduler_logger
@@ -44,7 +45,6 @@ Examples:
         print("STARTING AUTOMATED SCRAPER SCHEDULER")
         print("=" * 80)
         print("\nSchedule:")
-        from config import SCRAPER_CONFIG
         for name, config in SCRAPER_CONFIG.items():
             if config.get("enabled"):
                 hour = config.get("schedule_hour", 0)
@@ -71,12 +71,29 @@ Examples:
         print("SCHEDULER STATUS")
         print("=" * 80)
         print(f"Running: {status['running']}")
+        print(f"Current time ({SCHEDULER_CONFIG['timezone']}): {status['current_time']}")
+        print(
+            f"Run missed jobs on startup: {status['run_missed_on_startup']}"
+        )
         print(f"Active jobs: {status['total_jobs']}\n")
         if status["jobs"]:
             for job in status["jobs"]:
                 print(f"  • {job['name']}")
                 print(f"    Next run: {job['next_run']}")
-                print(f"    Trigger: {job['trigger']}\n")
+                print(f"    Trigger: {job['trigger']}")
+                if job.get("missed_today"):
+                    print(
+                        "    [!] Missed today - will run immediately when you "
+                        "start the scheduler"
+                    )
+                print()
+        else:
+            print("  No scrapers are enabled in config.py\n")
+        if not status["running"]:
+            print(
+                "Note: Start the scheduler with 'python cli.py start' and "
+                "keep that terminal open.\n"
+            )
         print("=" * 80 + "\n")
 
     elif args.command == "stats":

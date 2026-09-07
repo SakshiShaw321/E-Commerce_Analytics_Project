@@ -9,11 +9,11 @@ Write-Host "STARTING AUTOMATED E-COMMERCE SCRAPER SCHEDULER" -ForegroundColor Cy
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "This script will:" -ForegroundColor Yellow
-Write-Host "  1. Run Myntra scraper at 00:00 (midnight)" -ForegroundColor White
-Write-Host "  2. Run Ajio scraper at 02:00" -ForegroundColor White
-Write-Host "  3. Run Snapdeal scraper at 04:00" -ForegroundColor White
-Write-Host "  4. Run Flipkart scraper at 06:00" -ForegroundColor White
-Write-Host "  5. Run Amazon scraper at 08:00" -ForegroundColor White
+Write-Host "  1. Run Myntra scraper at 10:00" -ForegroundColor White
+Write-Host "  2. Run Ajio scraper at 11:00" -ForegroundColor White
+Write-Host "  3. Run Snapdeal scraper at 12:00" -ForegroundColor White
+Write-Host "  4. Run Flipkart scraper at 13:00" -ForegroundColor White
+Write-Host "  5. Run Amazon scraper at 14:00" -ForegroundColor White
 Write-Host ""
 Write-Host "All data will be saved to: extract/raw_data/" -ForegroundColor Green
 Write-Host ""

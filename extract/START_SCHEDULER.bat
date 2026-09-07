@@ -11,11 +11,11 @@ echo STARTING AUTOMATED E-COMMERCE SCRAPER SCHEDULER
 echo ============================================================================
 echo.
 echo This script will:
-echo   1. Run Myntra scraper at 00:00 (midnight)
-echo   2. Run Ajio scraper at 02:00
-echo   3. Run Snapdeal scraper at 04:00
-echo   4. Run Flipkart scraper at 06:00
-echo   5. Run Amazon scraper at 08:00
+echo   1. Run Myntra scraper at 10:00
+echo   2. Run Ajio scraper at 11:00
+echo   3. Run Snapdeal scraper at 12:00
+echo   4. Run Flipkart scraper at 13:00
+echo   5. Run Amazon scraper at 14:00
 echo.
 echo All data will be saved to: extract/raw_data/
 echo.
@@ -37,13 +37,15 @@ REM Check if dependencies are installed
 python -c "import apscheduler" >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo Installing required dependencies...
-    pip install -r "../scheduler_requirements.txt"
+    echo Installing required scheduler dependencies...
+    pip install apscheduler pytz tzlocal
     if errorlevel 1 (
-        echo ERROR: Failed to install dependencies
+        echo ERROR: Failed to install scheduler dependencies
         pause
         exit /b 1
     )
+    echo Installing scraper dependencies...
+    pip install -r "../scheduler_requirements.txt"
 )
 
 REM Start the scheduler

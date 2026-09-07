@@ -5,6 +5,8 @@ import time
 import importlib
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -14,15 +16,22 @@ from logger_setup import scheduler_logger, scraper_logger, error_logger
 from execution_tracker import ExecutionTracker
 
 
+def _scheduler_kwargs() -> dict:
+    """Return only APScheduler-supported constructor options."""
+    allowed = {"timezone", "executors", "job_defaults", "jobstores"}
+    return {key: value for key, value in SCHEDULER_CONFIG.items() if key in allowed}
+
+
 class ScraperScheduler:
     """Orchestrate automatic scraper execution."""
 
     def __init__(self):
         """Initialize the scheduler."""
-        self.scheduler = BackgroundScheduler(**SCHEDULER_CONFIG)
+        self.scheduler = BackgroundScheduler(**_scheduler_kwargs())
         self.tracker = ExecutionTracker()
         self.scrapers_dir = Path(__file__).parent
         sys.path.insert(0, str(self.scrapers_dir))
+        self._timezone = ZoneInfo(SCHEDULER_CONFIG["timezone"])
 
     def run_scraper(self, scraper_name: str, config: dict) -> None:
         """Execute a single scraper with error handling and retry logic."""
@@ -133,11 +142,84 @@ class ScraperScheduler:
         )
         return job
 
+    def _today_scheduled_time(self, config: dict) -> datetime:
+        """Return today's scheduled run time in the configured timezone."""
+        now = datetime.now(self._timezone)
+        return now.replace(
+            hour=config.get("schedule_hour", 0),
+            minute=config.get("schedule_minute", 0),
+            second=0,
+            microsecond=0,
+        )
+
+    def _should_run_missed_today(self, scraper_name: str, config: dict) -> bool:
+        """Check if today's scheduled run was missed and should run on startup."""
+        if not SCHEDULER_CONFIG.get("run_missed_on_startup", True):
+            return False
+        if not config.get("enabled", True):
+            return False
+
+        now = datetime.now(self._timezone)
+        scheduled_time = self._today_scheduled_time(config)
+        if now < scheduled_time:
+            return False
+
+        stats = self.tracker.get_stats(scraper_name)
+        if not stats or not stats.get("last_success_at"):
+            return True
+
+        last_success = datetime.fromisoformat(stats["last_success_at"])
+        if last_success.tzinfo is None:
+            last_success = last_success.replace(tzinfo=self._timezone)
+        else:
+            last_success = last_success.astimezone(self._timezone)
+
+        return last_success.date() < now.date()
+
+    def _run_missed_scrapers(self) -> None:
+        """Run scrapers whose scheduled time already passed today without a success."""
+        missed = [
+            (scraper_name, config)
+            for scraper_name, config in SCRAPER_CONFIG.items()
+            if self._should_run_missed_today(scraper_name, config)
+        ]
+        if not missed:
+            return
+
+        scheduler_logger.info(
+            f"Running {len(missed)} missed scraper(s) from today's schedule..."
+        )
+        for scraper_name, config in missed:
+            hour = config.get("schedule_hour", 0)
+            minute = config.get("schedule_minute", 0)
+            scheduler_logger.info(
+                f"  ↪ {scraper_name} was scheduled for {hour:02d}:{minute:02d} today"
+            )
+            self.run_scraper(scraper_name, config)
+
+    def _ensure_jobs_scheduled(self) -> None:
+        """Register cron jobs if they have not been added yet."""
+        if self.scheduler.get_jobs():
+            return
+        for scraper_name, config in SCRAPER_CONFIG.items():
+            self.schedule_scraper(scraper_name, config)
+
+    def _job_next_run(self, config: dict) -> datetime | None:
+        """Compute the next run time for a scraper without starting the scheduler."""
+        hour = config.get("schedule_hour", 0)
+        minute = config.get("schedule_minute", 0)
+        trigger = CronTrigger(
+            hour=hour,
+            minute=minute,
+            timezone=SCHEDULER_CONFIG["timezone"],
+        )
+        now = datetime.now(self._timezone)
+        return trigger.get_next_fire_time(None, now)
+
     def start(self) -> None:
         """Start the scheduler."""
         try:
-            for scraper_name, config in SCRAPER_CONFIG.items():
-                self.schedule_scraper(scraper_name, config)
+            self._ensure_jobs_scheduled()
 
             scheduler_logger.info("=" * 60)
             scheduler_logger.info("SCRAPER SCHEDULER STARTED")
@@ -148,6 +230,8 @@ class ScraperScheduler:
 
             self.scheduler.start()
             scheduler_logger.info("Scheduler is now running. Press Ctrl+C to stop.")
+
+            self._run_missed_scrapers()
 
             try:
                 while True:
@@ -167,19 +251,39 @@ class ScraperScheduler:
 
     def get_status(self) -> dict:
         """Get current scheduler status."""
-        jobs = [
-            {
-                "id": job.id,
-                "name": job.name,
-                "next_run": str(job.next_run_time),
-                "trigger": str(job.trigger),
-            }
-            for job in self.scheduler.get_jobs()
-        ]
+        now = datetime.now(self._timezone)
+        jobs = []
+        for scraper_name, config in SCRAPER_CONFIG.items():
+            if not config.get("enabled", True):
+                continue
+
+            hour = config.get("schedule_hour", 0)
+            minute = config.get("schedule_minute", 0)
+            trigger = CronTrigger(
+                hour=hour,
+                minute=minute,
+                timezone=SCHEDULER_CONFIG["timezone"],
+            )
+            next_run = self._job_next_run(config)
+            missed_today = self._should_run_missed_today(scraper_name, config)
+            jobs.append(
+                {
+                    "id": f"scraper_{scraper_name}",
+                    "name": f"Scraper: {scraper_name}",
+                    "next_run": str(next_run) if next_run else "N/A",
+                    "trigger": str(trigger),
+                    "missed_today": missed_today,
+                }
+            )
+
         return {
             "running": self.scheduler.running,
             "jobs": jobs,
             "total_jobs": len(jobs),
+            "current_time": now.isoformat(),
+            "run_missed_on_startup": SCHEDULER_CONFIG.get(
+                "run_missed_on_startup", True
+            ),
         }
 
     def run_scraper_now(self, scraper_name: str) -> bool:
